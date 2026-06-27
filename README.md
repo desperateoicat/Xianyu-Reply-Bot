@@ -110,7 +110,7 @@ npm run status
 
 ## 交流群
 
-![XianyuAIBot交流群二维码](XianyuAIBot交流群二维码.png)
+<img src="XianyuAIBot交流群二维码.png" alt="交流群二维码" width="200" />
 
 ## Star History
 
