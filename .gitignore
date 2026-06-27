@@ -1,0 +1,26 @@
+# 环境变量（含密钥）
+.env
+
+# Chrome 用户数据（含登录态、Cookie、密码）
+chrome-profile/
+
+# 运行时数据
+state.json
+runtime.log
+heartbeat.json
+launch.err.log
+launch.out.log
+
+# 商品配置（含真实商品数据）
+products.json
+
+# 调试输出
+debug-page.html
+debug-selectors.json
+
+# 依赖
+node_modules/
+
+# 系统文件
+.DS_Store
+Thumbs.db

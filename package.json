@@ -1,0 +1,17 @@
+{
+  "name": "Xianyu-Reply-Bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js",
+    "debug:browser": "node src/debug-browser.js",
+    "status": "node src/status.js",
+    "admin": "node -e \"import('./src/admin.js').then(m => m.startAdminServer(process.cwd()))\""
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "playwright": "^1.55.0"
+  }
+}

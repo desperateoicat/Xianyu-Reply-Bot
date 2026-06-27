@@ -1,0 +1,36 @@
+{
+  "defaults": {
+    "prompt": [
+      "默认按自然、简短、像真实卖家一样回复。",
+      "如果买家问是否还在，优先直接回答是否还在。"
+    ],
+    "pricing": {
+      "floorRatio": 0.9,
+      "floorOffset": 0
+    }
+  },
+  "products": [
+    {
+      "itemId": "1023740460370",
+      "name": "示例商品",
+      "prompt": [
+        "这是数字商品，默认即时交付。",
+        "不要主动承诺售后以外的额外服务。"
+      ],
+      "pricing": {
+        "floorPrice": 7.2
+      }
+    },
+    {
+      "itemUrl": "https://www.goofish.com/item?id=1008591346960&categoryId=",
+      "name": "另一个示例商品",
+      "prompt": [
+        "这是实物商品，强调现货、发货速度和成色。"
+      ],
+      "pricing": {
+        "floorRatio": 0.85,
+        "floorOffset": 1
+      }
+    }
+  ]
+}
