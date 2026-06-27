@@ -20,48 +20,102 @@
 
 ## 使用
 
-1. 安装依赖
+### 1. 安装依赖
 
 ```powershell
 npm install
 ```
 
-2. 复制环境变量模板
+> 如果没有执行这一步直接运行，会报 `Cannot find package 'dotenv'` 错误。
+
+### 2. 复制环境变量模板（可选）
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-3. 填写 `.env`
+即使跳过这一步也**不会影响启动**，你可以在 Web 管理面板中完成所有配置。
 
-- `DEEPSEEK_API_KEY`: DeepSeek API Key
-- `CHROME_EXECUTABLE_PATH`: 本机 Chrome 路径，可留空让 Playwright 自动查找
-- `CHROME_USER_DATA_DIR`: Chrome 用户数据目录，默认 `./chrome-profile`（项目内置，已加入 `.gitignore`）
-- `XIANYU_MESSAGES_URL`: 默认闲鱼消息页
-- `OPEN_CONVERSATION_RETRY_COUNT`: 页面初始加载后，重试查找会话列表的次数
-- `OPEN_CONVERSATION_RETRY_DELAY_MS`: 每次重试间隔
-- `BARGAIN_FLOOR_RATIO`: 议价底线比例，例如 `0.9` 表示最低回复价默认为标价的 90%
-- `BARGAIN_FLOOR_OFFSET`: 议价底线再减去的固定金额，默认 `0`
-
-4. 运行
+### 3. 启动程序
 
 ```powershell
 npm start
 ```
 
-5. 检查运行状态
+启动后访问管理面板：**http://127.0.0.1:3456**
+
+管理面板会**始终启动**，即使你还没有配置任何参数。你可以在面板中完成以下所有设置：
+
+- 填写 DeepSeek API Key、选择模型
+- 切换自动发送开关、调整轮询间隔
+- 配置 Chrome 浏览器路径
+- 管理商品列表和回复提示词
+- 查看运行状态和日志
+
+配置完成后，点击面板顶部的「启动服务」按钮即可开始自动回复。
+
+### 4. 手动配置 .env（可选替代方式）
+
+如果你更习惯直接编辑文件，也可以在 `.env` 中填写以下变量：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `DEEPSEEK_API_KEY` | DeepSeek API Key（必填） | - |
+| `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | 模型名称 | `deepseek-v4-flash` |
+| `XIANYU_MESSAGES_URL` | 闲鱼消息页地址 | `https://www.goofish.com/im` |
+| `POLL_INTERVAL_MS` | 轮询间隔（毫秒） | `15000` |
+| `AUTO_SEND` | 是否自动发送回复 | `true` |
+| `MAX_HISTORY_MESSAGES` | 每次读取的最大历史消息数 | `12` |
+| `MAX_REPLY_CHARS` | 单次回复最大字数 | `120` |
+| `CHROME_EXECUTABLE_PATH` | Chrome 可执行文件路径 | 自动查找 |
+| `CHROME_USER_DATA_DIR` | Chrome 用户数据目录 | `./chrome-profile` |
+| `CHROME_PROFILE` | Chrome 用户配置名 | `Default` |
+| `HEADLESS` | 无头模式（不显示浏览器窗口） | `false` |
+| `OPEN_CONVERSATION_RETRY_COUNT` | 查找会话列表重试次数 | `8` |
+| `OPEN_CONVERSATION_RETRY_DELAY_MS` | 每次重试间隔（毫秒） | `800` |
+
+### 5. 检查运行状态
 
 ```powershell
 npm run status
 ```
 
-这个状态检查不会启动浏览器，也不会影响正在运行的自动回复进程。
+状态检查不会启动浏览器，也不会影响正在运行的自动回复进程。
 
-查看运行状态，不启动浏览器：
+## 常见问题
+
+### Q: 运行时报 `Cannot find package 'dotenv'`
+
+**原因**：没有安装项目依赖。
+
+**解决**：在项目根目录执行 `npm install`，安装完成后再运行 `npm start`。
+
+### Q: 运行时报 `EADDRINUSE: address already in use 127.0.0.1:3456`
+
+**原因**：端口 3456 已被占用，通常是之前的程序实例没有完全关闭。
+
+**解决**：
 
 ```powershell
-npm run status
+# 1. 查找占用端口的进程 PID
+netstat -ano | findstr :3456
+# 输出示例：TCP  127.0.0.1:3456  ...  LISTENING  12345
+
+# 2. 终止该进程（将 12345 替换为实际的 PID）
+taskkill /PID 12345 /F
+
+# 3. 重新启动
+npm start
 ```
+
+### Q: 启动后在哪里配置 API Key？
+
+打开浏览器访问 **http://127.0.0.1:3456**，进入「系统设置」标签页，填写 DeepSeek API Key 后保存。然后点击顶部的「启动服务」按钮。
+
+### Q: 如何获取 DeepSeek API Key？
+
+前往 [DeepSeek 开放平台](https://platform.deepseek.com) 注册并登录，在控制台中创建 API Key。
 
 ## 建议
 

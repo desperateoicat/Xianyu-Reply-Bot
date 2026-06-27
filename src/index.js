@@ -1,5 +1,7 @@
+import path from "node:path";
+import dotenv from "dotenv";
 import { startAdminServer } from "./admin.js";
-import { assertDeepSeekConfig, config } from "./config.js";
+import { config } from "./config.js";
 import { DeepSeekClient } from "./deepseek.js";
 import { writeHeartbeat } from "./heartbeat.js";
 import { createLogger } from "./logger.js";
@@ -267,17 +269,51 @@ function createServiceController() {
     async start() {
       if (running) return;
 
+      // 重新读取 .env（管理面板可能已经修改过）
+      dotenv.config({ path: path.join(config.paths.projectRoot, ".env") });
+
+      const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
+      if (!apiKey) {
+        throw new Error("请先在管理面板的「系统设置」中配置 DeepSeek API Key 后再启动服务");
+      }
+
+      // 从环境变量重建配置（确保使用管理面板修改后的最新值）
+      const freshDeepSeekConfig = {
+        apiKey,
+        baseUrl: process.env.DEEPSEEK_BASE_URL?.trim() || "https://api.deepseek.com",
+        model: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-v4-flash"
+      };
+      const freshXianyuConfig = {
+        ...config.xianyu,
+        messagesUrl: process.env.XIANYU_MESSAGES_URL?.trim() || config.xianyu.messagesUrl,
+        pollIntervalMs: process.env.POLL_INTERVAL_MS ? Number(process.env.POLL_INTERVAL_MS) : config.xianyu.pollIntervalMs,
+        autoSend: process.env.AUTO_SEND ? ["1", "true", "yes", "on"].includes(process.env.AUTO_SEND.trim().toLowerCase()) : config.xianyu.autoSend,
+        maxHistoryMessages: process.env.MAX_HISTORY_MESSAGES ? Number(process.env.MAX_HISTORY_MESSAGES) : config.xianyu.maxHistoryMessages,
+        maxReplyChars: process.env.MAX_REPLY_CHARS ? Number(process.env.MAX_REPLY_CHARS) : config.xianyu.maxReplyChars,
+        openConversationRetryCount: process.env.OPEN_CONVERSATION_RETRY_COUNT ? Number(process.env.OPEN_CONVERSATION_RETRY_COUNT) : config.xianyu.openConversationRetryCount,
+        openConversationRetryDelayMs: process.env.OPEN_CONVERSATION_RETRY_DELAY_MS ? Number(process.env.OPEN_CONVERSATION_RETRY_DELAY_MS) : config.xianyu.openConversationRetryDelayMs
+      };
+      const freshBrowserConfig = {
+        ...config.browser,
+        executablePath: process.env.CHROME_EXECUTABLE_PATH?.trim() || config.browser.executablePath,
+        userDataDir: process.env.CHROME_USER_DATA_DIR?.trim() || config.browser.userDataDir,
+        profile: process.env.CHROME_PROFILE?.trim() || config.browser.profile,
+        headless: process.env.HEADLESS ? ["1", "true", "yes", "on"].includes(process.env.HEADLESS.trim().toLowerCase()) : config.browser.headless
+      };
+
       const productConfig = loadProductConfig(config.paths.productConfigFile);
       const state = loadState(config.paths.stateFile);
-      const client = new DeepSeekClient(config.deepseek);
+      const client = new DeepSeekClient(freshDeepSeekConfig);
 
       logger = createLogger(config.paths.logFile);
+      const xianyuCfg = freshXianyuConfig;
+
       page = new XianyuPage(
         {
-          ...config.browser,
-          messagesUrl: config.xianyu.messagesUrl,
-          openConversationRetryCount: config.xianyu.openConversationRetryCount,
-          openConversationRetryDelayMs: config.xianyu.openConversationRetryDelayMs
+          ...freshBrowserConfig,
+          messagesUrl: xianyuCfg.messagesUrl,
+          openConversationRetryCount: xianyuCfg.openConversationRetryCount,
+          openConversationRetryDelayMs: xianyuCfg.openConversationRetryDelayMs
         },
         logger
       );
@@ -285,13 +321,13 @@ function createServiceController() {
       await page.start();
       writeHeartbeat(config.paths.heartbeatFile, {
         status: "running",
-        autoSend: config.xianyu.autoSend,
-        pollIntervalMs: config.xianyu.pollIntervalMs,
+        autoSend: xianyuCfg.autoSend,
+        pollIntervalMs: xianyuCfg.pollIntervalMs,
         phase: "started"
       });
       logger.info("Auto reply worker started", {
-        autoSend: config.xianyu.autoSend,
-        pollIntervalMs: config.xianyu.pollIntervalMs
+        autoSend: xianyuCfg.autoSend,
+        pollIntervalMs: xianyuCfg.pollIntervalMs
       });
 
       running = true;
@@ -303,18 +339,18 @@ function createServiceController() {
             const opened = await page.openLatestUnreadConversation();
             if (!opened) {
               logger.info("No conversation found");
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
-            const messages = await page.readCurrentMessages(config.xianyu.maxHistoryMessages);
+            const messages = await page.readCurrentMessages(xianyuCfg.maxHistoryMessages);
             const context = await page.readConversationContext();
             const productProfile = resolveProductProfile(productConfig, context);
             const conversationId = buildConversationId(opened, context);
             writeHeartbeat(config.paths.heartbeatFile, {
               status: "running",
-              autoSend: config.xianyu.autoSend,
-              pollIntervalMs: config.xianyu.pollIntervalMs,
+              autoSend: xianyuCfg.autoSend,
+              pollIntervalMs: xianyuCfg.pollIntervalMs,
               phase: "polling",
               lastConversationTitle: opened?.title || "",
               lastConversationId: conversationId
@@ -334,7 +370,7 @@ function createServiceController() {
             const currentFingerprint = fingerprint(messages);
             if (hasReplied(state, conversation.id, currentFingerprint)) {
               logger.info("Skipping already-processed conversation", { id: conversation.id });
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
@@ -346,7 +382,7 @@ function createServiceController() {
               });
               markReplied(state, conversation.id, currentFingerprint);
               saveState(config.paths.stateFile, state);
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
@@ -360,13 +396,13 @@ function createServiceController() {
                 reply: finalReply,
                 itemId: context.itemId
               });
-              if (config.xianyu.autoSend) {
+              if (xianyuCfg.autoSend) {
                 await page.sendReply(finalReply);
                 logger.info("Reply sent", { id: conversation.id, mode: "bargain_refusal" });
                 writeHeartbeat(config.paths.heartbeatFile, {
                   status: "running",
-                  autoSend: config.xianyu.autoSend,
-                  pollIntervalMs: config.xianyu.pollIntervalMs,
+                  autoSend: xianyuCfg.autoSend,
+                  pollIntervalMs: xianyuCfg.pollIntervalMs,
                   phase: "reply_sent",
                   lastConversationId: conversation.id,
                   lastReply: finalReply
@@ -376,7 +412,7 @@ function createServiceController() {
               }
               markReplied(state, conversation.id, currentFingerprint);
               saveState(config.paths.stateFile, state);
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
@@ -385,14 +421,14 @@ function createServiceController() {
               logger.warn("Model requested escalation", { id: conversation.id });
               markReplied(state, conversation.id, currentFingerprint);
               saveState(config.paths.stateFile, state);
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
-            const reply = normalizeReply(rawReply, config.xianyu.maxReplyChars);
+            const reply = normalizeReply(rawReply, xianyuCfg.maxReplyChars);
             if (!reply) {
               logger.warn("Model returned empty reply", { id: conversation.id });
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
@@ -414,13 +450,13 @@ function createServiceController() {
                 itemUrl: context.itemUrl,
                 reply: holdingReply
               });
-              if (config.xianyu.autoSend) {
+              if (xianyuCfg.autoSend) {
                 await page.sendReply(holdingReply);
                 logger.info("Reply sent", { id: conversation.id, mode: "holding" });
                 writeHeartbeat(config.paths.heartbeatFile, {
                   status: "running",
-                  autoSend: config.xianyu.autoSend,
-                  pollIntervalMs: config.xianyu.pollIntervalMs,
+                  autoSend: xianyuCfg.autoSend,
+                  pollIntervalMs: xianyuCfg.pollIntervalMs,
                   phase: "holding_reply_sent",
                   lastConversationId: conversation.id,
                   lastReply: holdingReply
@@ -430,7 +466,7 @@ function createServiceController() {
               }
               markReplied(state, conversation.id, currentFingerprint);
               saveState(config.paths.stateFile, state);
-              await wait(config.xianyu.pollIntervalMs);
+              await wait(xianyuCfg.pollIntervalMs);
               continue;
             }
 
@@ -443,13 +479,13 @@ function createServiceController() {
               productName: productProfile?.name || "",
               productPrompt: conversation.productPrompt
             });
-            if (config.xianyu.autoSend) {
+            if (xianyuCfg.autoSend) {
               await page.sendReply(finalReply);
               logger.info("Reply sent", { id: conversation.id });
               writeHeartbeat(config.paths.heartbeatFile, {
                 status: "running",
-                autoSend: config.xianyu.autoSend,
-                pollIntervalMs: config.xianyu.pollIntervalMs,
+                autoSend: xianyuCfg.autoSend,
+                pollIntervalMs: xianyuCfg.pollIntervalMs,
                 phase: "reply_sent",
                 lastConversationId: conversation.id,
                 lastReply: finalReply
@@ -466,14 +502,14 @@ function createServiceController() {
             });
             writeHeartbeat(config.paths.heartbeatFile, {
               status: "running",
-              autoSend: config.xianyu.autoSend,
-              pollIntervalMs: config.xianyu.pollIntervalMs,
+              autoSend: xianyuCfg.autoSend,
+              pollIntervalMs: xianyuCfg.pollIntervalMs,
               phase: "error",
               error: error instanceof Error ? error.message : String(error)
             });
           }
 
-          await wait(config.xianyu.pollIntervalMs);
+          await wait(xianyuCfg.pollIntervalMs);
         }
 
         // 循环结束后清理
@@ -482,8 +518,8 @@ function createServiceController() {
         }
         writeHeartbeat(config.paths.heartbeatFile, {
           status: "stopped",
-          autoSend: config.xianyu.autoSend,
-          pollIntervalMs: config.xianyu.pollIntervalMs,
+          autoSend: xianyuCfg.autoSend,
+          pollIntervalMs: xianyuCfg.pollIntervalMs,
           phase: "stopped_by_user"
         });
         logger.info("Auto reply worker stopped");
@@ -497,11 +533,9 @@ function createServiceController() {
 }
 
 async function main() {
-  assertDeepSeekConfig();
-
   const serviceController = createServiceController();
 
-  // 启动 Web 管理面板（服务未启动，等待用户手动点击）
+  // 启动 Web 管理面板（无论是否配置完成，面板始终可用）
   const adminServer = startAdminServer(config.paths.projectRoot, serviceController);
 
   writeHeartbeat(config.paths.heartbeatFile, {
@@ -510,6 +544,10 @@ async function main() {
     pollIntervalMs: config.xianyu.pollIntervalMs,
     phase: "admin_ready"
   });
+
+  if (!config.deepseek.apiKey) {
+    console.log("[ADMIN] DeepSeek API Key 未配置，请在管理面板中设置后启动服务");
+  }
 
   // 保持进程存活
   await new Promise(() => {});
