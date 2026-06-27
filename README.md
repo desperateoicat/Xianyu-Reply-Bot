@@ -108,6 +108,10 @@ npm run status
 - 禁止用于商业目的
 - 禁止二次创作、修改后分发
 
+## 交流群
+
+![XianyuAIBot交流群二维码](XianyuAIBot交流群二维码.png)
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=desperateoicat/Xianyu-Reply-Bot&type=Date)](https://star-history.com/#desperateoicat/Xianyu-Reply-Bot&Date)
