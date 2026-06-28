@@ -781,6 +781,13 @@ export function startAdminServer(projectRoot, serviceController) {
         return;
       }
 
+      // favicon 静默返回
+      if (req.method === "GET" && url.pathname === "/favicon.ico") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
       // 404
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Not Found");

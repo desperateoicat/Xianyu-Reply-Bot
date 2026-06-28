@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import dotenv from "dotenv";
 import { startAdminServer } from "./admin.js";
 import { config } from "./config.js";
@@ -270,11 +271,22 @@ function createServiceController() {
       if (running) return;
 
       // 重新读取 .env（管理面板可能已经修改过）
-      dotenv.config({ path: path.join(config.paths.projectRoot, ".env") });
+      const envPath = path.join(config.paths.projectRoot, ".env");
+      if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath });
+      }
 
       const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
       if (!apiKey) {
-        throw new Error("请先在管理面板的「系统设置」中配置 DeepSeek API Key 后再启动服务");
+        const msg = "请先在管理面板的「系统设置」中配置 DeepSeek API Key 后再启动服务";
+        writeHeartbeat(config.paths.heartbeatFile, {
+          status: "idle",
+          autoSend: config.xianyu.autoSend,
+          pollIntervalMs: config.xianyu.pollIntervalMs,
+          phase: "start_failed",
+          error: msg
+        });
+        throw new Error(msg);
       }
 
       // 从环境变量重建配置（确保使用管理面板修改后的最新值）
